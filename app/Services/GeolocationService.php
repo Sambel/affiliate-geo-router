@@ -39,17 +39,40 @@ class GeolocationService
         $cacheKey = 'geo:' . md5($ip);
         
         return Cache::remember($cacheKey, 3600, function () use ($ip) {
-            if (!$this->reader) {
-                return $this->defaultCountry;
+            // Essayer d'abord MaxMind si disponible
+            if ($this->reader) {
+                try {
+                    $record = $this->reader->country($ip);
+                    $countryCode = $record->country->isoCode;
+                    if ($countryCode) {
+                        return $countryCode;
+                    }
+                } catch (\Exception $e) {
+                    Log::warning('MaxMind geolocation failed for IP ' . $ip . ': ' . $e->getMessage());
+                }
             }
 
+            // Fallback vers service gratuit ip-api.com
             try {
-                $record = $this->reader->country($ip);
-                return $record->country->isoCode ?? $this->defaultCountry;
+                $response = file_get_contents("http://ip-api.com/json/{$ip}?fields=countryCode", false, stream_context_create([
+                    'http' => [
+                        'timeout' => 5,
+                        'user_agent' => 'AffiliateGeoRouter/1.0'
+                    ]
+                ]));
+
+                if ($response) {
+                    $data = json_decode($response, true);
+                    if (isset($data['countryCode']) && $data['countryCode']) {
+                        Log::info("Geolocation fallback used for IP {$ip}: {$data['countryCode']}");
+                        return $data['countryCode'];
+                    }
+                }
             } catch (\Exception $e) {
-                Log::warning('Geolocation failed for IP ' . $ip . ': ' . $e->getMessage());
-                return $this->defaultCountry;
+                Log::warning('Fallback geolocation failed for IP ' . $ip . ': ' . $e->getMessage());
             }
+
+            return $this->defaultCountry;
         });
     }
 
