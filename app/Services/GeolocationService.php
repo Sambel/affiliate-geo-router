@@ -101,7 +101,14 @@ class GeolocationService
         );
 
         try {
-            $tempFile = tempnam(sys_get_temp_dir(), 'geolite2') . '.tar.gz';
+            // S'assurer que le dossier geoip existe
+            $geoipDir = storage_path('app/geoip');
+            if (!is_dir($geoipDir)) {
+                mkdir($geoipDir, 0755, true);
+            }
+            
+            // Créer un fichier temporaire avec la bonne extension
+            $tempFile = sys_get_temp_dir() . '/geolite2_' . uniqid() . '.tar.gz';
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
@@ -120,8 +127,22 @@ class GeolocationService
                 throw new \Exception("Downloaded file is empty or does not exist");
             }
 
-            $phar = new \PharData($tempFile);
-            $phar->extractTo(storage_path('app/geoip'), null, true);
+            // Essayer d'abord avec PharData
+            try {
+                $phar = new \PharData($tempFile);
+                $phar->extractTo(storage_path('app/geoip'), null, true);
+            } catch (\Exception $pharException) {
+                Log::warning('PharData extraction failed, trying tar command: ' . $pharException->getMessage());
+                
+                // Fallback avec la commande tar système
+                $extractPath = storage_path('app/geoip');
+                $command = "cd {$extractPath} && tar -xzf {$tempFile}";
+                exec($command, $output, $returnVar);
+                
+                if ($returnVar !== 0) {
+                    throw new \Exception('Both PharData and tar extraction failed. Output: ' . implode("\n", $output));
+                }
+            }
 
             $files = glob(storage_path('app/geoip/GeoLite2-Country_*/GeoLite2-Country.mmdb'));
             if (!empty($files)) {
