@@ -14,7 +14,10 @@ class InitialDataSeeder extends Seeder
         $countries = $this->getAllCountries();
 
         foreach ($countries as $country) {
-            Country::create($country);
+            Country::updateOrCreate(
+                ['iso_code' => $country['iso_code']], // Critère de recherche
+                $country // Données à créer ou mettre à jour
+            );
         }
 
         $operators = [
@@ -39,28 +42,39 @@ class InitialDataSeeder extends Seeder
         ];
 
         foreach ($operators as $operatorData) {
-            $operator = Operator::create($operatorData);
+            $operator = Operator::updateOrCreate(
+                ['slug' => $operatorData['slug']], // Critère de recherche
+                $operatorData // Données à créer ou mettre à jour
+            );
 
             $france = Country::where('iso_code', 'FR')->first();
             if ($france) {
-                AffiliateLink::create([
-                    'operator_id' => $operator->id,
-                    'country_id' => $france->id,
-                    'url' => $operatorData['default_url'] . '/fr?aff=12345',
-                    'status' => 'active',
-                    'priority' => 10,
-                ]);
+                AffiliateLink::updateOrCreate(
+                    [
+                        'operator_id' => $operator->id,
+                        'country_id' => $france->id,
+                    ],
+                    [
+                        'url' => $operatorData['default_url'] . '/fr?aff=12345',
+                        'status' => 'active',
+                        'priority' => 10,
+                    ]
+                );
             }
 
             $uk = Country::where('iso_code', 'GB')->first();
             if ($uk) {
-                AffiliateLink::create([
-                    'operator_id' => $operator->id,
-                    'country_id' => $uk->id,
-                    'url' => $operatorData['default_url'] . '/uk?aff=12345',
-                    'status' => 'active',
-                    'priority' => 10,
-                ]);
+                AffiliateLink::updateOrCreate(
+                    [
+                        'operator_id' => $operator->id,
+                        'country_id' => $uk->id,
+                    ],
+                    [
+                        'url' => $operatorData['default_url'] . '/uk?aff=12345',
+                        'status' => 'active',
+                        'priority' => 10,
+                    ]
+                );
             }
         }
 
