@@ -73,25 +73,31 @@ php artisan key:generate
 php artisan migrate
 ```
 
-9. **Lancer les seeders pour les données de test**
+9. **Lancer les seeders (249 pays + opérateurs de test)**
 ```bash
 php artisan db:seed --class=InitialDataSeeder
 ```
 
 10. **Créer un utilisateur administrateur**
 ```bash
+# Méthode simple (interactif)
 php artisan admin:create
-# Email par défaut: admin@admin.com
-# Mot de passe: password123
+
+# Méthode rapide (en une ligne)
+php artisan admin:create --email=admin@admin.com --password=password123
+
+# Mettre à jour un admin existant
+php artisan admin:create --email=admin@admin.com --password=nouveaumotdepasse --force
 ```
 
 ## 🌍 Configuration MaxMind (Géolocalisation)
 
 ### Obtenir une clé API MaxMind
 
-1. Créer un compte sur [MaxMind](https://www.maxmind.com/en/geolite2/signup)
-2. Générer une license key dans votre compte
-3. Ajouter les credentials dans `.env`:
+1. Créer un compte **gratuit** sur [MaxMind](https://www.maxmind.com/en/geolite2/signup)
+2. Dans votre compte, aller dans "My License Key"
+3. Générer une nouvelle clé (cocher "No" pour geoipupdate)
+4. Ajouter les credentials dans `.env`:
 
 ```env
 MAXMIND_LICENSE_KEY=votre_cle_license
@@ -104,7 +110,15 @@ MAXMIND_USER_ID=votre_user_id
 php artisan geo:update-database
 ```
 
-> ⚠️ Note: Sans la base GeoLite2, le système utilisera le pays par défaut (FR)
+### Système de Fallback Géolocalisation
+
+Le système utilise une approche en cascade :
+
+1. **MaxMind GeoLite2** (priorité) - Précis, rapide, offline
+2. **ip-api.com** (fallback gratuit) - 1000 requêtes/mois, utilisé temporairement
+3. **Pays par défaut** (FR) - Si tout échoue
+
+> ⚠️ **Important**: Sans MaxMind configuré, le système utilise ip-api.com (limite 1000 req/mois) puis retombe sur la France
 
 ### Créer le dossier pour la base GeoIP
 ```bash
@@ -148,28 +162,38 @@ Les seeders créent 3 opérateurs de test :
 
 ## 🛠️ Commandes Artisan
 
-### Mise à jour base GeoIP
+### Configuration et Setup
 ```bash
+# Créer un admin (nouvelle syntaxe avec options)
+php artisan admin:create --email=admin@example.com --password=monmotdepasse --force
+
+# Populer la base avec 249 pays + opérateurs de test
+php artisan db:seed --class=InitialDataSeeder
+
+# Créer des données de test étendues (liens affiliés multiples)
+php artisan setup:test-data
+```
+
+### Géolocalisation MaxMind
+```bash
+# Télécharger/mettre à jour la base GeoLite2
 php artisan geo:update-database
+
+# Tester la géolocalisation
+php artisan tinker --execute="
+\$service = app('App\Services\GeolocationService');
+echo 'IP US (8.8.8.8): ' . \$service->getCountryCode('8.8.8.8') . PHP_EOL;
+echo 'IP GB (8.8.4.4): ' . \$service->getCountryCode('8.8.4.4') . PHP_EOL;
+"
 ```
 
-### Nettoyage des anciens logs
+### Analytics et Maintenance
 ```bash
+# Nettoyage des anciens logs
 php artisan clicks:cleanup
-```
 
-### Export des analytics
-```bash
-# Export complet
-php artisan clicks:export
-
-# Export avec filtres
+# Export des analytics
 php artisan clicks:export --start=2024-01-01 --end=2024-01-31 --operator=bet365 --country=FR
-```
-
-### Créer un admin
-```bash
-php artisan admin:create
 ```
 
 ## 🔧 Troubleshooting
@@ -190,11 +214,28 @@ php artisan config:clear
 php artisan route:clear
 ```
 
-### Queue jobs non exécutés
-Lancer le worker :
+### Gestion des Queues avec Laravel Horizon
+
+**Installation et configuration :**
 ```bash
-php artisan queue:work redis
+# Horizon est inclus dans le projet
+php artisan horizon:install
 ```
+
+**En développement :**
+```bash
+# Lancer Horizon pour le monitoring des queues
+php artisan horizon
+```
+
+**Accéder au dashboard Horizon :**
+- URL : http://affiliate-geo-router.test/horizon
+- Monitoring en temps réel des jobs
+- Métriques et statistiques
+
+**En production (Laravel Cloud) :**
+- Horizon démarre automatiquement
+- Variables d'environnement : `QUEUE_CONNECTION=redis`
 
 ### Erreur Filament/Admin
 ```bash
@@ -234,11 +275,21 @@ php artisan optimize
 ## 📦 Stack Technique
 
 - **Framework**: Laravel 12
-- **Admin**: Filament 3
+- **Admin Interface**: Filament 3
 - **Database**: MySQL 8.0+
-- **Cache/Queue**: Redis
-- **Géolocalisation**: MaxMind GeoLite2
+- **Cache/Queue**: Redis + Laravel Horizon
+- **Géolocalisation**: MaxMind GeoLite2 + fallback ip-api.com
 - **PHP**: 8.2+
+- **Déploiement**: Laravel Cloud (production)
+
+### Nouvelles Fonctionnalités
+
+- **🌍 249 pays supportés** avec codes ISO complets
+- **⚡ Géolocalisation hybride** (MaxMind + fallback ip-api.com)
+- **🎛️ Interface admin améliorée** avec liens copiables
+- **📊 Laravel Horizon** pour monitoring des queues
+- **🛠️ Commandes admin flexibles** (création utilisateur en une ligne)
+- **🔄 Seeders réutilisables** (updateOrCreate)
 
 ## 📝 License
 
