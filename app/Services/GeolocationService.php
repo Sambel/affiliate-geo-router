@@ -101,23 +101,49 @@ class GeolocationService
         );
 
         try {
-            $tempFile = tempnam(sys_get_temp_dir(), 'geolite2');
+            $tempFile = tempnam(sys_get_temp_dir(), 'geolite2') . '.tar.gz';
             $ch = curl_init($url);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+            curl_setopt($ch, CURLOPT_TIMEOUT, 300); // 5 minutes timeout
             curl_setopt($ch, CURLOPT_FILE, fopen($tempFile, 'w'));
-            curl_exec($ch);
+            
+            $result = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
+
+            if ($result === false || $httpCode !== 200) {
+                throw new \Exception("Failed to download file. HTTP code: {$httpCode}");
+            }
+
+            if (!file_exists($tempFile) || filesize($tempFile) == 0) {
+                throw new \Exception("Downloaded file is empty or does not exist");
+            }
 
             $phar = new \PharData($tempFile);
             $phar->extractTo(storage_path('app/geoip'), null, true);
 
             $files = glob(storage_path('app/geoip/GeoLite2-Country_*/GeoLite2-Country.mmdb'));
             if (!empty($files)) {
-                rename($files[0], storage_path('app/geoip/GeoLite2-Country.mmdb'));
+                $destinationPath = storage_path('app/geoip/GeoLite2-Country.mmdb');
+                
+                // Supprimer l'ancien fichier s'il existe
+                if (file_exists($destinationPath)) {
+                    unlink($destinationPath);
+                }
+                
+                rename($files[0], $destinationPath);
+                
+                // Nettoyer le dossier temporaire extrait
+                $extractedDir = dirname($files[0]);
+                if (is_dir($extractedDir)) {
+                    rmdir($extractedDir);
+                }
             }
 
-            unlink($tempFile);
+            if (file_exists($tempFile)) {
+                unlink($tempFile);
+            }
             
             $this->initializeReader();
             
