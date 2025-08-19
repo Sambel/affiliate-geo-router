@@ -10,6 +10,7 @@
         "filament/filament": "^3.0",
         "geoip2/geoip2": "^3.2",
         "laravel/framework": "^12.0",
+        "laravel/horizon": "^5.33",
         "laravel/tinker": "^2.10.1",
         "predis/predis": "^3.2"
     },
